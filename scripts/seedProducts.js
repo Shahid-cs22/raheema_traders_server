@@ -1,0 +1,302 @@
+require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
+const mongoose = require('mongoose');
+const slugify = require('slugify');
+const Product = require('../models/Product');
+const connectDB = require('../config/db');
+
+const initialProducts = [
+  {
+    name: 'Raheema Velocity Marathon Runner',
+    brand: 'Raheema Traders',
+    category: 'Sports Shoes',
+    gender: 'Men',
+    price: 180,
+    discountPrice: 145,
+    description: 'Raheema Traders signature running silhouette engineered with responsive high-rebound cushioning and breathable mesh upper for marathoners and active daily runners in Karungal.',
+    images: [
+      'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=1000&q=80',
+      'https://images.unsplash.com/photo-1608231387042-66d1773070a5?auto=format&fit=crop&w=1000&q=80',
+    ],
+    sizes: ['8', '9', '10', '11', '12'],
+    colors: ['Infrared Red', 'Midnight Black'],
+    stock: 24,
+    sku: 'RT-SP-1001',
+    isFeatured: true,
+    isActive: true,
+    rating: 4.9,
+    reviewsCount: 38,
+  },
+  {
+    name: 'VKC Pride Dynamic Energy Trainer',
+    brand: 'VKC',
+    category: 'Sneakers',
+    gender: 'Unisex',
+    price: 160,
+    discountPrice: 129,
+    description: 'Trusted VKC durability combined with modern athletic styling. Flexible knit upper with high-shock absorption soles designed for all-day comfort.',
+    images: [
+      'https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&w=1000&q=80',
+      'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?auto=format&fit=crop&w=1000&q=80',
+    ],
+    sizes: ['7', '8', '9', '10', '11'],
+    colors: ['Triple White', 'Cloud Grey'],
+    stock: 18,
+    sku: 'VKC-SN-2002',
+    isFeatured: true,
+    isActive: true,
+    rating: 4.8,
+    reviewsCount: 45,
+  },
+  {
+    name: 'Bata Executive Sovereign Leather Brogues',
+    brand: 'Bata',
+    category: 'Formal Shoes',
+    gender: 'Men',
+    price: 240,
+    discountPrice: null,
+    description: 'Bata heritage craftsmanship featuring full-grain genuine leather, Goodyear welt construction, elegant brogue detailing, and cushioned orthopedic insoles.',
+    images: [
+      'https://images.unsplash.com/photo-1614252235316-8c857d38b5f4?auto=format&fit=crop&w=1000&q=80',
+      'https://images.unsplash.com/photo-1533867617858-e7b97e060509?auto=format&fit=crop&w=1000&q=80',
+    ],
+    sizes: ['8', '9', '10', '11'],
+    colors: ['Espresso Brown', 'Cognac Tan'],
+    stock: 12,
+    sku: 'BAT-FO-3003',
+    isFeatured: true,
+    isActive: true,
+    rating: 5.0,
+    reviewsCount: 19,
+  },
+  {
+    name: 'Walkaroo Street Comfort High-Tops',
+    brand: 'Walkaroo',
+    category: 'Sneakers',
+    gender: 'Men',
+    price: 210,
+    discountPrice: 175,
+    description: 'Bold Walkaroo street-ready high-tops built with tough textured leather uppers, reinforced padded collar, and slip-resistant rubber outsoles.',
+    images: [
+      'https://images.unsplash.com/photo-1584735935682-2f2b69dff9d2?auto=format&fit=crop&w=1000&q=80',
+      'https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?auto=format&fit=crop&w=1000&q=80',
+    ],
+    sizes: ['8', '9', '10', '11', '12'],
+    colors: ['Vintage Bone', 'Shadow Black'],
+    stock: 15,
+    sku: 'WAL-SN-4004',
+    isFeatured: true,
+    isActive: true,
+    rating: 4.7,
+    reviewsCount: 29,
+  },
+  {
+    name: 'Paragon Max Soft Cushion Slip-On',
+    brand: 'Paragon',
+    category: "Women's Shoes",
+    gender: 'Women',
+    price: 110,
+    discountPrice: 89,
+    description: 'Celebrated Paragon daily footwear comfort. Lightweight slip-on design with dual-layer cloud cushioning and breathable stretch uppers.',
+    images: [
+      'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?auto=format&fit=crop&w=1000&q=80',
+      'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?auto=format&fit=crop&w=1000&q=80',
+    ],
+    sizes: ['6', '7', '8', '9'],
+    colors: ['Blush Pink', 'Pure White', 'Stone Grey'],
+    stock: 30,
+    sku: 'PAR-WS-5005',
+    isFeatured: true,
+    isActive: true,
+    rating: 4.9,
+    reviewsCount: 62,
+  },
+  {
+    name: 'Popy Trail Guard All-Weather Footwear',
+    brand: 'Popy',
+    category: 'Sports Shoes',
+    gender: 'Unisex',
+    price: 195,
+    discountPrice: 165,
+    description: 'Engineered by Popy with waterproof weather-shield coating, deep-tread anti-skid lugs, and reinforced toe bumper for coastal monsoon and trail trekking.',
+    images: [
+      'https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?auto=format&fit=crop&w=1000&q=80',
+    ],
+    sizes: ['8', '9', '10', '11', '12'],
+    colors: ['Olive Drab', 'Burnt Orange'],
+    stock: 9,
+    sku: 'POP-SP-6006',
+    isFeatured: false,
+    isActive: true,
+    rating: 4.8,
+    reviewsCount: 22,
+  },
+  {
+    name: 'Walkaroo Ergonomic Comfort Slide',
+    brand: 'Walkaroo',
+    category: 'Sandals',
+    gender: 'Unisex',
+    price: 85,
+    discountPrice: 65,
+    description: 'Ultra-durable Walkaroo slide featuring contoured arch-supporting footbed and moisture-wicking wide band for effortless home and casual wear.',
+    images: [
+      'https://images.unsplash.com/photo-1603808033192-082d6919d3e1?auto=format&fit=crop&w=1000&q=80',
+    ],
+    sizes: ['7', '8', '9', '10', '11'],
+    colors: ['Mocha Brown', 'Desert Sand'],
+    stock: 20,
+    sku: 'WAL-SA-7007',
+    isFeatured: true,
+    isActive: true,
+    rating: 4.6,
+    reviewsCount: 14,
+  },
+  {
+    name: 'Bata Formal Derby Dress Shoe',
+    brand: 'Bata',
+    category: 'Formal Shoes',
+    gender: 'Men',
+    price: 220,
+    discountPrice: null,
+    description: 'Polished open-laced Derby shoes from Bata crafted from premium fine-grain leather with slip-resistant all-day comfort soles for office and ceremonies.',
+    images: [
+      'https://images.unsplash.com/photo-1533867617858-e7b97e060509?auto=format&fit=crop&w=1000&q=80',
+    ],
+    sizes: ['8', '9', '10', '11'],
+    colors: ['Onyx Black'],
+    stock: 14,
+    sku: 'BAT-FO-8008',
+    isFeatured: false,
+    isActive: true,
+    rating: 4.9,
+    reviewsCount: 18,
+  },
+  {
+    name: 'VKC Pro Court Agile Shoe',
+    brand: 'VKC',
+    category: 'Sports Shoes',
+    gender: 'Men',
+    price: 145,
+    discountPrice: 119,
+    description: 'Reinforced lateral support and non-marking gum soles by VKC, ideal for badminton, volleyball, and daily fitness routines across Karungal turf and courts.',
+    images: [
+      'https://images.unsplash.com/photo-1560769629-975ec94e6a86?auto=format&fit=crop&w=1000&q=80',
+    ],
+    sizes: ['8', '9', '10', '11', '12'],
+    colors: ['Cyber Neon', 'Polar White'],
+    stock: 16,
+    sku: 'VKC-SP-9009',
+    isFeatured: false,
+    isActive: true,
+    rating: 4.7,
+    reviewsCount: 31,
+  },
+  {
+    name: 'Raheema Royal Handcrafted Leather Loafers',
+    brand: 'Raheema Traders',
+    category: "Men's Shoes",
+    gender: 'Men',
+    price: 210,
+    discountPrice: 179,
+    description: 'Signature Raheema Traders penny loafers tailored from soft supple suede with meticulous contrast stitching and orthopedic arch cushion.',
+    images: [
+      'https://images.unsplash.com/photo-1562183241-b937e95585b6?auto=format&fit=crop&w=1000&q=80',
+    ],
+    sizes: ['8', '9', '10', '11'],
+    colors: ['Navy Suede', 'Taupe Suede'],
+    stock: 8,
+    sku: 'RT-MS-1010',
+    isFeatured: false,
+    isActive: true,
+    rating: 4.8,
+    reviewsCount: 27,
+  },
+  {
+    name: 'Paragon Serena Sculpted Block-Heel Pump',
+    brand: 'Paragon',
+    category: "Women's Shoes",
+    gender: 'Women',
+    price: 175,
+    discountPrice: 139,
+    description: 'Sophisticated women’s block-heel pump from Paragon offering 2.5-inch stable elevation with memory-foam insole padding and pointed toe grace.',
+    images: [
+      'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?auto=format&fit=crop&w=1000&q=80',
+    ],
+    sizes: ['6', '7', '8', '9'],
+    colors: ['Burgundy Wine', 'Classic Nude', 'Jet Black'],
+    stock: 15,
+    sku: 'PAR-WS-1111',
+    isFeatured: true,
+    isActive: true,
+    rating: 4.9,
+    reviewsCount: 42,
+  },
+  {
+    name: 'Skybag Trail Adventure Outdoor Sandal',
+    brand: 'Skybag',
+    category: 'Sandals',
+    gender: 'Unisex',
+    price: 95,
+    discountPrice: 79,
+    description: 'Rugged outdoor sandals by Skybag featuring heavy-duty quick-drying webbed straps, shock-absorbing EVA midsole, and deep-grip rubber outsole.',
+    images: [
+      'https://images.unsplash.com/photo-1603808033192-082d6919d3e1?auto=format&fit=crop&w=1000&q=80',
+    ],
+    sizes: ['7', '8', '9', '10', '11', '12'],
+    colors: ['Forest Green', 'Raven Black'],
+    stock: 22,
+    sku: 'SKY-SA-1212',
+    isFeatured: false,
+    isActive: true,
+    rating: 4.5,
+    reviewsCount: 16,
+  },
+  {
+    name: 'American Tourist Voyager Travel Slip-On',
+    brand: 'American Tourist',
+    category: 'Sneakers',
+    gender: 'Unisex',
+    price: 130,
+    discountPrice: 105,
+    description: 'Lightweight travel sneakers from American Tourist engineered for airport transits, long walking tours, and effortless slip-on flexibility.',
+    images: [
+      'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?auto=format&fit=crop&w=1000&q=80',
+    ],
+    sizes: ['7', '8', '9', '10', '11'],
+    colors: ['Slate Grey', 'Midnight Navy'],
+    stock: 18,
+    sku: 'AT-SN-1313',
+    isFeatured: true,
+    isActive: true,
+    rating: 4.8,
+    reviewsCount: 24,
+  },
+];
+
+const seedProducts = async () => {
+  try {
+    console.log('[Seed Products]: Connecting to database...');
+    await connectDB();
+
+    console.log('[Seed Products]: Clearing existing products...');
+    await Product.deleteMany({});
+    console.log('Existing products cleared.');
+
+    console.log('[Seed Products]: Inserting updated products with new brands...');
+    for (const p of initialProducts) {
+      const slug = slugify(p.name, { lower: true, strict: true });
+      await Product.create({
+        ...p,
+        slug,
+      });
+      console.log(`+ Product created: [${p.brand}] ${p.name}`);
+    }
+
+    console.log(`\nSuccessfully seeded ${initialProducts.length} products with new brands!`);
+    process.exit(0);
+  } catch (error) {
+    console.error('[Seed Products Error]:', error);
+    process.exit(1);
+  }
+};
+
+seedProducts();
