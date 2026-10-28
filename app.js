@@ -24,6 +24,7 @@ app.use(
 const allowedOrigins = [
   'http://localhost:5173',
   'http://127.0.0.1:5173',
+  'https://raheema-traders.vercel.app',
   process.env.CLIENT_URL,
 ].filter(Boolean);
 
@@ -31,7 +32,7 @@ app.use(
   cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps, curl, or Postman)
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
         return callback(null, true);
       }
       return callback(null, true); // Allow all in dev/preview if needed
