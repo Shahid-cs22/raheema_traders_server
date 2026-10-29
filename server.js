@@ -13,7 +13,7 @@ const startServer = async () => {
     console.warn('[Database Warning]: Server starting with offline/unconnected DB state:', error.message);
   }
 
-  const server = app.listen(PORT, () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`
   ======================================================
     KINETIC FOOTWEAR - REST API SERVER RUNNING

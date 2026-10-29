@@ -64,6 +64,16 @@ const authLimiter = rateLimit({
 });
 app.use('/api/auth/login', authLimiter);
 
+// Root endpoint (for Render/cloud root health probes)
+app.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'online',
+    message: 'Raheema Traders REST API is running',
+    health: '/api/health',
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   const dbState = mongoose.connection.readyState;
