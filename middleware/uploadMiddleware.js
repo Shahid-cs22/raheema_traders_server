@@ -45,6 +45,16 @@ const upload = multer({
  * otherwise return local relative URL
  */
 const processUploadedFile = async (req, file) => {
+  // Reliable public base URL (defaults to live Render cloud server)
+  const getPublicBaseUrl = (r) => {
+    if (process.env.BACKEND_URL) return process.env.BACKEND_URL.replace(/\/+$/, '');
+    const host = r ? r.get('host') : '';
+    if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+      return `${r.protocol}://${host}`;
+    }
+    return 'https://raheema-traders-server.onrender.com';
+  };
+
   if (isCloudinaryConfigured) {
     try {
       const result = await cloudinary.uploader.upload(file.path, {
@@ -56,14 +66,14 @@ const processUploadedFile = async (req, file) => {
       return result.secure_url;
     } catch (err) {
       console.error('Cloudinary upload error:', err);
-      // Fallback to local URL if Cloudinary fails
-      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      // Fallback to public URL if Cloudinary fails
+      const baseUrl = getPublicBaseUrl(req);
       return `${baseUrl}/uploads/${file.filename}`;
     }
   }
 
-  // Local URL
-  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  // Public Cloud URL
+  const baseUrl = getPublicBaseUrl(req);
   return `${baseUrl}/uploads/${file.filename}`;
 };
 
