@@ -211,7 +211,7 @@ const createProduct = async (req, res, next) => {
       slug,
       brand: brand || 'Kinetic',
       category,
-      gender: gender || 'Unisex',
+      gender: gender || 'Men',
       description,
       price: Number(price),
       discountPrice: discountPrice ? Number(discountPrice) : null,
