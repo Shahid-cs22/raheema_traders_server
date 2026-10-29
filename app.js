@@ -3,9 +3,11 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
+const fs = require('fs');
 const rateLimit = require('express-rate-limit');
 
 const mongoose = require('mongoose');
+const Image = require('./models/Image');
 const authRoutes = require('./routes/authRoutes');
 const productRoutes = require('./routes/productRoutes');
 const adminRoutes = require('./routes/adminRoutes');
@@ -54,8 +56,37 @@ if (process.env.NODE_ENV === 'development') {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Static uploads serving
+// Static uploads serving (local disk cache first)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Persistent uploads fallback from MongoDB Atlas (prevents 404s when Render restarts its container)
+app.get('/uploads/:filename', async (req, res, next) => {
+  try {
+    const { filename } = req.params;
+    const img = await Image.findOne({ filename });
+    if (img && img.data) {
+      res.set('Content-Type', img.contentType || 'image/jpeg');
+      res.set('Cache-Control', 'public, max-age=31536000, immutable');
+      // Re-cache to local disk on current instance
+      try {
+        const uploadDir = path.join(__dirname, 'uploads');
+        if (!fs.existsSync(uploadDir)) {
+          fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        const localPath = path.join(uploadDir, filename);
+        if (!fs.existsSync(localPath)) {
+          fs.writeFileSync(localPath, img.data);
+        }
+      } catch (cacheErr) {
+        // Disk write failed, ignore
+      }
+      return res.send(img.data);
+    }
+    return res.status(404).json({ success: false, message: 'Image not found' });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // Rate limiting for auth endpoints (brute-force protection)
 const authLimiter = rateLimit({

@@ -2,6 +2,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { cloudinary, isCloudinaryConfigured } = require('../config/cloudinary');
+const Image = require('../models/Image');
 
 // Ensure uploads directory exists
 const uploadDir = path.join(__dirname, '../uploads');
@@ -70,6 +71,25 @@ const processUploadedFile = async (req, file) => {
       const baseUrl = getPublicBaseUrl(req);
       return `${baseUrl}/uploads/${file.filename}`;
     }
+  }
+
+  // Always persist image buffer in MongoDB Atlas as a permanent backup against Render ephemeral wipes
+  try {
+    if (fs.existsSync(file.path)) {
+      const buffer = fs.readFileSync(file.path);
+      await Image.findOneAndUpdate(
+        { filename: file.filename },
+        {
+          filename: file.filename,
+          contentType: file.mimetype || 'image/jpeg',
+          size: file.size,
+          data: buffer,
+        },
+        { upsert: true, new: true }
+      );
+    }
+  } catch (dbErr) {
+    console.error('Failed to persist image to MongoDB Atlas:', dbErr.message);
   }
 
   // Public Cloud URL

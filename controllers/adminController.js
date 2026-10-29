@@ -1,5 +1,6 @@
 const slugify = require('slugify');
 const Product = require('../models/Product');
+const Image = require('../models/Image');
 const { processUploadedFile } = require('../middleware/uploadMiddleware');
 
 // Helper to generate unique SKU
@@ -354,6 +355,19 @@ const deleteProduct = async (req, res, next) => {
         success: false,
         message: 'Product not found',
       });
+    }
+
+    // Clean up stored image in MongoDB Atlas if any
+    if (product.images && product.images.length > 0) {
+      for (const imgUrl of product.images) {
+        if (typeof imgUrl === 'string') {
+          const parts = imgUrl.split('/');
+          const filename = parts[parts.length - 1];
+          if (filename && filename.startsWith('footwear-')) {
+            await Image.findOneAndDelete({ filename }).catch(() => {});
+          }
+        }
+      }
     }
 
     await Product.findByIdAndDelete(req.params.id);

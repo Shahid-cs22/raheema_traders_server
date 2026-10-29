@@ -8,7 +8,8 @@
     "dev": "node --watch server.js",
     "seed:admin": "node scripts/createAdmin.js",
     "seed:admins": "node scripts/seedAdmins.js",
-    "seed:products": "node scripts/seedProducts.js"
+    "seed:products": "node scripts/seedProducts.js",
+    "sync-images": "node scripts/syncUploads.js"
   },
   "keywords": ["footwear", "ecommerce", "mern", "express", "mongodb"],
   "author": "Kinetic Footwear",
