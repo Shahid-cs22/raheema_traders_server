@@ -140,12 +140,16 @@ const createProduct = async (req, res, next) => {
       isActive,
     } = req.body;
 
-    if (!name || !category || price === undefined || price === null || !description) {
+    if (!name || !category || price === undefined || price === null) {
       return res.status(400).json({
         success: false,
-        message: 'Name, Category, Price, and Description are required fields',
+        message: 'Name, Category, and Price are required fields',
       });
     }
+
+    const finalDescription = description && description.trim()
+      ? description.trim()
+      : `Authentic ${name} from Raheema Traders, Karungal.`;
 
     // Auto-generate or sanitize slug
     if (!slug || !slug.trim()) {
@@ -212,7 +216,7 @@ const createProduct = async (req, res, next) => {
       brand: brand || 'Kinetic',
       category,
       gender: gender || 'Men',
-      description,
+      description: finalDescription,
       price: Number(price),
       discountPrice: discountPrice ? Number(discountPrice) : null,
       images: imageUrls,

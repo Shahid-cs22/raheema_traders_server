@@ -47,7 +47,8 @@ const productSchema = new mongoose.Schema(
     },
     description: {
       type: String,
-      required: [true, 'Description is required'],
+      default: 'Premium authentic collection from Raheema Traders, Karungal.',
+      trim: true,
     },
     price: {
       type: Number,
