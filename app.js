@@ -13,6 +13,10 @@ const { notFound, errorHandler } = require('./middleware/errorMiddleware');
 
 const app = express();
 
+// Trust reverse proxy headers (Render, Cloudflare, Vercel, AWS ALB)
+// Required for accurate IP rate limiting without ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+app.set('trust proxy', 1);
+
 // Security HTTP headers
 app.use(
   helmet({
@@ -57,6 +61,9 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
   message: {
     success: false,
     message: 'Too many authentication attempts, please try again after 15 minutes',
@@ -64,10 +71,11 @@ const authLimiter = rateLimit({
 });
 app.use('/api/auth/login', authLimiter);
 
-// Root endpoint (for Render/cloud root health probes)
-app.get('/', (req, res) => {
+// Root endpoint (for Render/cloud root health probes - handles GET and HEAD)
+app.all('/', (req, res) => {
   res.status(200).json({
     status: 'online',
+    service: 'Raheema Traders REST API',
     message: 'Raheema Traders REST API is running',
     health: '/api/health',
     timestamp: new Date().toISOString(),
