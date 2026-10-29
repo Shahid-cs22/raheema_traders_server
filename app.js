@@ -71,6 +71,9 @@ const authLimiter = rateLimit({
 });
 app.use('/api/auth/login', authLimiter);
 
+// Favicon handler to silence browser icon requests
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
 // Root endpoint (for Render/cloud root health probes - handles GET and HEAD)
 app.all('/', (req, res) => {
   res.status(200).json({
