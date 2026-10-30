@@ -105,14 +105,30 @@ const getProducts = async (req, res, next) => {
   }
 };
 
-// @desc    Get featured products for home showcase
+// @desc    Get featured products for home showcase (with automatic fallback to latest products)
 // @route   GET /api/products/featured
 // @access  Public
 const getFeaturedProducts = async (req, res, next) => {
   try {
-    const products = await Product.find({ isActive: true, isFeatured: true })
+    // 1. Fetch products specifically marked as featured first
+    let products = await Product.find({ isActive: true, isFeatured: true })
       .sort({ createdAt: -1 })
       .limit(8);
+
+    // 2. If fewer than 8 featured products, backfill with newest active arrivals
+    // This guarantees the landing showcase is always populated and never empty
+    if (products.length < 8) {
+      const existingIds = products.map((p) => p._id);
+      const needed = 8 - products.length;
+      const recentArrivals = await Product.find({
+        isActive: true,
+        _id: { $nin: existingIds },
+      })
+        .sort({ createdAt: -1 })
+        .limit(needed);
+
+      products = [...products, ...recentArrivals];
+    }
 
     res.status(200).json({
       success: true,
@@ -182,12 +198,60 @@ const getProductById = async (req, res, next) => {
 const getCategories = async (req, res, next) => {
   try {
     const standardCategories = [
-      { name: "Men's Shoes", slug: 'mens-shoes', image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=800&q=80' },
-      { name: "Women's Shoes", slug: 'womens-shoes', image: 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?auto=format&fit=crop&w=800&q=80' },
-      { name: 'Sneakers', slug: 'sneakers', image: 'https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&w=800&q=80' },
-      { name: 'Sports Shoes', slug: 'sports-shoes', image: 'https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?auto=format&fit=crop&w=800&q=80' },
-      { name: 'Sandals', slug: 'sandals', image: 'https://images.unsplash.com/photo-1603808033192-082d6919d3e1?auto=format&fit=crop&w=800&q=80' },
-      { name: 'Formal Shoes', slug: 'formal-shoes', image: 'https://images.unsplash.com/photo-1614252235316-8c857d38b5f4?auto=format&fit=crop&w=800&q=80' },
+      {
+        name: "Men's Shoes",
+        slug: 'mens-shoes',
+        image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=800&q=80',
+        description: 'Authentic trainers, casuals & walking footwear',
+      },
+      {
+        name: "Women's Shoes",
+        slug: 'womens-shoes',
+        image: 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?auto=format&fit=crop&w=800&q=80',
+        description: 'Comfort heels, flats, and daily lifestyle footwear',
+      },
+      {
+        name: 'Sandals',
+        slug: 'sandals',
+        image: 'https://images.unsplash.com/photo-1603808033192-082d6919d3e1?auto=format&fit=crop&w=800&q=80',
+        description: 'Ergonomic slides, flip-flops & strap sandals',
+      },
+      {
+        name: 'Formal Shoes',
+        slug: 'formal-shoes',
+        image: 'https://images.unsplash.com/photo-1614252235316-8c857d38b5f4?auto=format&fit=crop&w=800&q=80',
+        description: 'Handcrafted leather brogues, derbies & oxfords',
+      },
+      {
+        name: 'Sports Shoes',
+        slug: 'sports-shoes',
+        image: 'https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?auto=format&fit=crop&w=800&q=80',
+        description: 'High-traction running, training & turf shoes',
+      },
+      {
+        name: 'Raincoat',
+        slug: 'raincoat',
+        image: 'https://images.unsplash.com/photo-1515694346937-94d85e41e6f0?auto=format&fit=crop&w=800&q=80',
+        description: 'Heavy-duty monsoon waterproof rainwear & suits',
+      },
+      {
+        name: 'Umbrella & Cap',
+        slug: 'umbrella-and-cap',
+        image: 'https://images.unsplash.com/photo-1517438476312-10d79c077509?auto=format&fit=crop&w=800&q=80',
+        description: 'Authentic Popy windproof umbrellas & sun caps',
+      },
+      {
+        name: 'Belt & Wallet',
+        slug: 'belt-and-wallet',
+        image: 'https://images.unsplash.com/photo-1627123424574-724758594e93?auto=format&fit=crop&w=800&q=80',
+        description: 'Genuine leather belts, cardholders & wallets',
+      },
+      {
+        name: 'Shoe Polish & Socks',
+        slug: 'shoe-polish-and-socks',
+        image: 'https://images.unsplash.com/photo-1586350977771-b3b0abd50c82?auto=format&fit=crop&w=800&q=80',
+        description: 'Shoe care creams, polishes, brushes & cotton socks',
+      },
     ];
 
     // Aggregate counts of active products for each category
