@@ -196,7 +196,7 @@ const createProduct = async (req, res, next) => {
     // Default image if none provided
     if (imageUrls.length === 0) {
       imageUrls = [
-        'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=800&q=80',
+        'https://i.pinimg.com/736x/3b/f7/73/3bf773a3ef0c40967742270bba69b7c2.jpg',
       ];
     }
 

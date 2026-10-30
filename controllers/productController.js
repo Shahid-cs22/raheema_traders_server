@@ -201,7 +201,7 @@ const getCategories = async (req, res, next) => {
       {
         name: "Men's Shoes",
         slug: 'mens-shoes',
-        image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=800&q=80',
+        image: 'https://i.pinimg.com/736x/3b/f7/73/3bf773a3ef0c40967742270bba69b7c2.jpg',
         description: 'Authentic trainers, casuals & walking footwear',
       },
       {
