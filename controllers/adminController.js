@@ -5,7 +5,7 @@ const { processUploadedFile } = require('../middleware/uploadMiddleware');
 
 // Helper to generate unique SKU
 const generateSKU = (brand, category) => {
-  const brandCode = (brand || 'KIN').substring(0, 3).toUpperCase();
+  const brandCode = (brand || 'VOL').substring(0, 3).toUpperCase();
   const catCode = (category || 'SH').substring(0, 2).toUpperCase();
   const randomNum = Math.floor(1000 + Math.random() * 9000);
   return `${brandCode}-${catCode}-${randomNum}`;
@@ -116,7 +116,7 @@ const getDashboardStats = async (req, res, next) => {
 // @access  Private/Admin
 const getAllProductsAdmin = async (req, res, next) => {
   try {
-    const { search, category, status, sort, page = 1, limit = 10 } = req.query;
+    const { search, category, brand, status, sort, page = 1, limit = 10 } = req.query;
 
     const query = {};
 
@@ -132,6 +132,10 @@ const getAllProductsAdmin = async (req, res, next) => {
 
     if (category && category !== 'All') {
       query.category = category;
+    }
+
+    if (brand && brand !== 'All') {
+      query.brand = brand;
     }
 
     if (status === 'active') {
@@ -271,7 +275,7 @@ const createProduct = async (req, res, next) => {
     const product = new Product({
       name,
       slug,
-      brand: brand || 'Kinetic',
+      brand: brand || 'Volant',
       category,
       gender: gender || 'Men',
       description: finalDescription,

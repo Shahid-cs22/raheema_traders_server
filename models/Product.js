@@ -19,7 +19,7 @@ const productSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Brand is required'],
       trim: true,
-      default: 'Kinetic',
+      default: 'Volant',
     },
     category: {
       type: String,
