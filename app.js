@@ -56,33 +56,35 @@ if (process.env.NODE_ENV === 'development') {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Static uploads serving (local disk cache first)
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-// Persistent uploads fallback from MongoDB Atlas (prevents 404s when Render restarts its container)
+// Dedicated persistent uploads route (Disk Cache + MongoDB Atlas permanent fallback)
 app.get('/uploads/:filename', async (req, res, next) => {
   try {
     const { filename } = req.params;
+    const uploadDir = path.join(__dirname, 'uploads');
+    const localPath = path.join(uploadDir, filename);
+
+    // 1. Serve from local disk cache if present
+    if (fs.existsSync(localPath)) {
+      return res.sendFile(localPath);
+    }
+
+    // 2. Fallback to MongoDB Atlas Image buffer
     const img = await Image.findOne({ filename });
     if (img && img.data) {
       res.set('Content-Type', img.contentType || 'image/jpeg');
       res.set('Cache-Control', 'public, max-age=31536000, immutable');
-      // Re-cache to local disk on current instance
+      // Async re-cache to local disk
       try {
-        const uploadDir = path.join(__dirname, 'uploads');
         if (!fs.existsSync(uploadDir)) {
           fs.mkdirSync(uploadDir, { recursive: true });
         }
-        const localPath = path.join(uploadDir, filename);
-        if (!fs.existsSync(localPath)) {
-          fs.writeFileSync(localPath, img.data);
-        }
-      } catch (cacheErr) {
-        // Disk write failed, ignore
-      }
+        fs.writeFile(localPath, img.data, () => {});
+      } catch (cacheErr) {}
       return res.send(img.data);
     }
-    return res.status(404).json({ success: false, message: 'Image not found' });
+
+    // 3. Fallback placeholder if missing anywhere (prevents broken image in browser)
+    return res.redirect('https://i.pinimg.com/736x/3b/f7/73/3bf773a3ef0c40967742270bba69b7c2.jpg');
   } catch (err) {
     next(err);
   }
