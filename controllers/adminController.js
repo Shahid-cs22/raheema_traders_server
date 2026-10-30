@@ -11,6 +11,61 @@ const generateSKU = (brand, category) => {
   return `${brandCode}-${catCode}-${randomNum}`;
 };
 
+// Helper to normalize category variations, aliases, and typos to canonical categories
+const normalizeCategory = (cat) => {
+  if (!cat || typeof cat !== 'string') return cat;
+  const c = cat.trim();
+  const lower = c.toLowerCase();
+  if (
+    lower === 'umbrella' ||
+    lower === 'cap' ||
+    lower.includes('umbrella') ||
+    lower.includes('cap') ||
+    lower.includes('umberlla')
+  ) {
+    return 'Umbrella & Cap';
+  }
+  if (
+    lower === 'wallet' ||
+    lower === 'belt' ||
+    lower.includes('wallet') ||
+    lower.includes('belt') ||
+    lower.includes('waller')
+  ) {
+    return 'Belt & Wallet';
+  }
+  if (
+    lower === 'shoepolish' ||
+    lower === 'shoe polish' ||
+    lower === 'socks' ||
+    lower === 'sock' ||
+    lower.includes('polish') ||
+    lower.includes('sock') ||
+    lower.includes('shouepolice')
+  ) {
+    return 'Shoe Polish & Socks';
+  }
+  if (lower.includes('raincoat') || lower.includes('rain coat') || lower.includes('rain')) {
+    return 'Raincoat';
+  }
+  if (lower.includes('sandal') || lower.includes('slide') || lower.includes('flip')) {
+    return 'Sandals';
+  }
+  if (lower.includes('formal') || lower.includes('leather')) {
+    return 'Formal Shoes';
+  }
+  if (lower.includes('sport') || lower.includes('running') || lower.includes('trainer')) {
+    return 'Sports Shoes';
+  }
+  if (lower.includes('women')) {
+    return "Women's Shoes";
+  }
+  if (lower.includes('men')) {
+    return "Men's Shoes";
+  }
+  return c;
+};
+
 // @desc    Get dashboard metrics & summary
 // @route   GET /api/admin/dashboard
 // @access  Private/Admin
@@ -148,6 +203,8 @@ const createProduct = async (req, res, next) => {
       });
     }
 
+    category = normalizeCategory(category);
+
     const finalDescription = description && description.trim()
       ? description.trim()
       : `Authentic ${name} from Raheema Traders, Karungal.`;
@@ -275,7 +332,7 @@ const updateProduct = async (req, res, next) => {
 
     if (name) product.name = name;
     if (brand) product.brand = brand;
-    if (category) product.category = category;
+    if (category) product.category = normalizeCategory(category);
     if (gender) product.gender = gender;
     if (description) product.description = description;
     if (price !== undefined) product.price = Number(price);

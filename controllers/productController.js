@@ -32,10 +32,44 @@ const getProducts = async (req, res, next) => {
       ];
     }
 
-    // Category filter (supports single or comma-separated)
+    // Category filter (supports single or comma-separated with smart alias expansion)
     if (category && category !== 'All') {
-      const categories = category.includes(',') ? category.split(',') : [category];
-      query.category = { $in: categories };
+      const rawCategories = category.includes(',') ? category.split(',') : [category];
+      const expandedCategories = new Set();
+      rawCategories.forEach((c) => {
+        const item = c.trim();
+        const lower = item.toLowerCase();
+        expandedCategories.add(item);
+        if (
+          lower.includes('umbrella') ||
+          lower.includes('cap') ||
+          lower.includes('umberlla')
+        ) {
+          expandedCategories.add('Umbrella & Cap');
+          expandedCategories.add('Umbrella');
+          expandedCategories.add('Cap');
+        } else if (
+          lower.includes('wallet') ||
+          lower.includes('belt') ||
+          lower.includes('waller')
+        ) {
+          expandedCategories.add('Belt & Wallet');
+          expandedCategories.add('Belt');
+          expandedCategories.add('Wallet');
+        } else if (
+          lower.includes('polish') ||
+          lower.includes('sock') ||
+          lower.includes('shouepolice')
+        ) {
+          expandedCategories.add('Shoe Polish & Socks');
+          expandedCategories.add('Shoe Polish');
+          expandedCategories.add('Socks');
+        } else if (lower.includes('raincoat') || lower.includes('rain')) {
+          expandedCategories.add('Raincoat');
+          expandedCategories.add('Raincoats');
+        }
+      });
+      query.category = { $in: Array.from(expandedCategories) };
     }
 
     // Gender filter

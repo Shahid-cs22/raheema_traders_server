@@ -24,6 +24,7 @@ const productSchema = new mongoose.Schema(
     category: {
       type: String,
       required: [true, 'Category is required'],
+      trim: true,
       enum: {
         values: [
           "Men's Shoes",
@@ -32,9 +33,16 @@ const productSchema = new mongoose.Schema(
           'Sandals',
           'Formal Shoes',
           'Raincoat',
+          'Raincoats',
           'Umbrella & Cap',
+          'Umbrella',
+          'Cap',
           'Belt & Wallet',
+          'Belt',
+          'Wallet',
           'Shoe Polish & Socks',
+          'Shoe Polish',
+          'Socks',
           'Sneakers',
         ],
         message: '{VALUE} is not a valid footwear or accessory category',
