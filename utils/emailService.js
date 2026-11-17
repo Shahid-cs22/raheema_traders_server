@@ -15,7 +15,8 @@ const getTransporter = async () => {
   const host = process.env.EMAIL_HOST || process.env.SMTP_HOST || 'smtp.gmail.com';
   const port = parseInt(process.env.EMAIL_PORT || process.env.SMTP_PORT || '587', 10);
   const user = process.env.EMAIL_USER || process.env.SMTP_USER;
-  const pass = process.env.EMAIL_PASS || process.env.SMTP_PASS;
+  const rawPass = process.env.EMAIL_PASS || process.env.SMTP_PASS;
+  const pass = rawPass ? rawPass.trim().replace(/\s+/g, '') : '';
   const secure = (process.env.EMAIL_SECURE === 'true' || port === 465);
 
   if (user && pass) {
