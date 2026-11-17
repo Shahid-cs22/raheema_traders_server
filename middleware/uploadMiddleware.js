@@ -42,20 +42,26 @@ const upload = multer({
 });
 
 /**
+ * Dynamic public base URL (resolves active host in dev/production with Render fallback)
+ */
+const getPublicBaseUrl = (r) => {
+  if (process.env.BACKEND_URL) return process.env.BACKEND_URL.replace(/\/+$/, '');
+  if (r && typeof r.get === 'function') {
+    const host = r.get('host');
+    if (host) {
+      return `${r.protocol || 'http'}://${host}`;
+    }
+  }
+  return process.env.NODE_ENV === 'production'
+    ? 'https://raheema-traders-server.onrender.com'
+    : `http://localhost:${process.env.PORT || 5000}`;
+};
+
+/**
  * Helper to upload a local file to Cloudinary if configured,
  * otherwise return local relative URL
  */
 const processUploadedFile = async (req, file) => {
-  // Reliable public base URL (defaults to live Render cloud server)
-  const getPublicBaseUrl = (r) => {
-    if (process.env.BACKEND_URL) return process.env.BACKEND_URL.replace(/\/+$/, '');
-    const host = r ? r.get('host') : '';
-    if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
-      return `${r.protocol}://${host}`;
-    }
-    return 'https://raheema-traders-server.onrender.com';
-  };
-
   if (isCloudinaryConfigured) {
     try {
       const result = await cloudinary.uploader.upload(file.path, {
@@ -100,4 +106,5 @@ const processUploadedFile = async (req, file) => {
 module.exports = {
   upload,
   processUploadedFile,
+  getPublicBaseUrl,
 };

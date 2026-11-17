@@ -1,18 +1,15 @@
+const mongoose = require('mongoose');
 const app = require('../app');
 const connectDB = require('../config/db');
 
-let isConnected = false;
-
 module.exports = async (req, res) => {
-  // Ensure DB connection is established before serving requests in serverless runtime
-  if (!isConnected) {
+  // Ensure DB connection is active before serving requests in serverless runtime
+  if (mongoose.connection.readyState !== 1) {
     try {
       await connectDB();
-      isConnected = true;
     } catch (err) {
-      console.warn('[Serverless DB Warning]: Connecting with offline state:', err.message);
+      console.warn('[Serverless DB Warning]: Could not establish MongoDB connection:', err.message);
     }
   }
   return app(req, res);
 };
-

@@ -60,8 +60,14 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.get('/uploads/:filename', async (req, res, next) => {
   try {
     const { filename } = req.params;
+    // Security: Sanitize filename with decodeURIComponent and path.basename to prevent path traversal
+    let cleanFilename = filename;
+    try {
+      cleanFilename = decodeURIComponent(filename);
+    } catch (e) {}
+    const safeFilename = path.basename(cleanFilename);
     const uploadDir = path.join(__dirname, 'uploads');
-    const localPath = path.join(uploadDir, filename);
+    const localPath = path.join(uploadDir, safeFilename);
 
     // 1. Serve from local disk cache if present
     if (fs.existsSync(localPath)) {
@@ -69,7 +75,7 @@ app.get('/uploads/:filename', async (req, res, next) => {
     }
 
     // 2. Fallback to MongoDB Atlas Image buffer
-    const img = await Image.findOne({ filename });
+    const img = await Image.findOne({ filename: safeFilename });
     if (img && img.data) {
       res.set('Content-Type', img.contentType || 'image/jpeg');
       res.set('Cache-Control', 'public, max-age=31536000, immutable');
@@ -103,6 +109,9 @@ const authLimiter = rateLimit({
   },
 });
 app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
+app.use('/api/auth/reset-password', authLimiter);
+app.use('/api/auth/send-verification-email', authLimiter);
 
 // Favicon handler to silence browser icon requests
 app.get('/favicon.ico', (req, res) => res.status(204).end());
@@ -118,8 +127,8 @@ app.all('/', (req, res) => {
   });
 });
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
+// Health check endpoint (handles GET and HEAD probes)
+app.all('/api/health', (req, res) => {
   const dbState = mongoose.connection.readyState;
   const dbStatusMap = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
   res.status(200).json({

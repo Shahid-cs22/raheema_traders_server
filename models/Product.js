@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const slugify = require('slugify');
 
 const productSchema = new mongoose.Schema(
   {
@@ -32,6 +33,7 @@ const productSchema = new mongoose.Schema(
           'Sports Shoes',
           'Sandals',
           'Formal Shoes',
+          'Sneakers',
           'Raincoat',
           'Raincoats',
           'Umbrella & Cap',
@@ -43,7 +45,6 @@ const productSchema = new mongoose.Schema(
           'Shoe Polish & Socks',
           'Shoe Polish',
           'Socks',
-          'Sneakers',
         ],
         message: '{VALUE} is not a valid footwear or accessory category',
       },
@@ -68,9 +69,23 @@ const productSchema = new mongoose.Schema(
       default: null,
       validate: {
         validator: function (val) {
-          return val === null || val === undefined || val < this.price;
+          if (val === null || val === undefined || val === '') return true;
+          const numericVal = Number(val);
+          if (isNaN(numericVal) || numericVal <= 0) return false;
+
+          const refPrice =
+            this.price !== undefined
+              ? Number(this.price)
+              : this._update && (this._update.price || this._update.$set?.price)
+              ? Number(this._update.price || this._update.$set.price)
+              : undefined;
+
+          if (refPrice !== undefined && !isNaN(refPrice)) {
+            return numericVal < refPrice;
+          }
+          return true;
         },
-        message: 'Discount price must be less than the regular price',
+        message: 'Discount price must be a positive number and less than the regular price',
       },
     },
     images: {
@@ -78,14 +93,14 @@ const productSchema = new mongoose.Schema(
       required: [true, 'At least one product image is required'],
       validate: {
         validator: function (val) {
-          return Array.isArray(val) && val.length > 0;
+          return Array.isArray(val) && val.filter((s) => typeof s === 'string' && s.trim().length > 0).length > 0;
         },
-        message: 'At least one image is required',
+        message: 'At least one valid product image URL is required',
       },
     },
     sizes: {
       type: [String],
-      default: ['5','6','7', '8', '9', '10', '11'],
+      default: ['5', '6', '7', '8', '9', '10', '11'],
     },
     colors: {
       type: [String],
@@ -127,6 +142,62 @@ const productSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+// Pre-validate hook for slug, sku, images, sizes & colors sanitization
+productSchema.pre('validate', function (next) {
+  // 1. Slug auto-generation & non-ASCII fallback
+  if (!this.slug || !this.slug.trim()) {
+    if (this.name) {
+      const generated = slugify(this.name, { lower: true, strict: true });
+      this.slug = generated || `footwear-${Date.now()}`;
+    } else {
+      this.slug = `footwear-${Date.now()}`;
+    }
+  } else {
+    this.slug = slugify(this.slug, { lower: true, strict: true }) || `footwear-${Date.now()}`;
+  }
+
+  // 2. SKU auto-generation if absent
+  if (!this.sku || !this.sku.trim()) {
+    const brandCode = (this.brand || 'VOL').substring(0, 3).toUpperCase();
+    const catCode = (this.category || 'SH').substring(0, 2).toUpperCase();
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    this.sku = `${brandCode}-${catCode}-${randomNum}`;
+  } else {
+    this.sku = this.sku.toUpperCase().trim();
+  }
+
+  // 3. Image array sanitization
+  if (Array.isArray(this.images)) {
+    this.images = this.images
+      .filter((img) => typeof img === 'string' && img.trim().length > 0)
+      .map((img) => img.trim());
+    if (this.images.length === 0) {
+      this.images = ['https://i.pinimg.com/736x/3b/f7/73/3bf773a3ef0c40967742270bba69b7c2.jpg'];
+    }
+  }
+
+  // 4. Sizes & Colors sanitization
+  if (Array.isArray(this.sizes)) {
+    this.sizes = this.sizes
+      .filter((s) => typeof s === 'string' && s.trim().length > 0)
+      .map((s) => s.trim());
+    if (this.sizes.length === 0) {
+      this.sizes = ['Standard'];
+    }
+  }
+
+  if (Array.isArray(this.colors)) {
+    this.colors = this.colors
+      .filter((c) => typeof c === 'string' && c.trim().length > 0)
+      .map((c) => c.trim());
+    if (this.colors.length === 0) {
+      this.colors = ['Standard'];
+    }
+  }
+
+  next();
+});
 
 // Indexes for high performance querying
 productSchema.index({ name: 'text', description: 'text', brand: 'text' });

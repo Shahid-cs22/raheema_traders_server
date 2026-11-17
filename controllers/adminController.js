@@ -3,12 +3,37 @@ const Product = require('../models/Product');
 const Image = require('../models/Image');
 const { processUploadedFile } = require('../middleware/uploadMiddleware');
 
+// Helper to escape regex special characters to prevent search query crashes
+const escapeRegex = (text) => {
+  if (!text || typeof text !== 'string') return '';
+  return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+};
+
 // Helper to generate unique SKU
 const generateSKU = (brand, category) => {
   const brandCode = (brand || 'VOL').substring(0, 3).toUpperCase();
   const catCode = (category || 'SH').substring(0, 2).toUpperCase();
   const randomNum = Math.floor(1000 + Math.random() * 9000);
   return `${brandCode}-${catCode}-${randomNum}`;
+};
+
+// Helper to safely parse JSON arrays, comma-delimited strings, or plain arrays
+const safeParseArray = (val, fallback = []) => {
+  if (!val) return fallback;
+  if (Array.isArray(val)) return val;
+  if (typeof val === 'string') {
+    try {
+      const parsed = JSON.parse(val);
+      if (Array.isArray(parsed)) return parsed;
+      return [parsed];
+    } catch (e) {
+      if (val.includes(',')) {
+        return val.split(',').map((s) => s.trim()).filter(Boolean);
+      }
+      return val.trim() ? [val.trim()] : fallback;
+    }
+  }
+  return fallback;
 };
 
 // Helper to normalize category variations, aliases, and typos to canonical categories
@@ -56,6 +81,9 @@ const normalizeCategory = (cat) => {
   }
   if (lower.includes('sport') || lower.includes('running') || lower.includes('trainer')) {
     return 'Sports Shoes';
+  }
+  if (lower.includes('sneaker')) {
+    return 'Sneakers';
   }
   if (lower.includes('women')) {
     return "Women's Shoes";
@@ -121,7 +149,8 @@ const getAllProductsAdmin = async (req, res, next) => {
     const query = {};
 
     if (search && search.trim()) {
-      const searchRegex = new RegExp(search.trim(), 'i');
+      const sanitized = escapeRegex(search.trim());
+      const searchRegex = new RegExp(sanitized, 'i');
       query.$or = [
         { name: searchRegex },
         { brand: searchRegex },
@@ -248,8 +277,8 @@ const createProduct = async (req, res, next) => {
 
     // Also support images passed in body (URLs)
     if (images) {
-      const parsedImages = typeof images === 'string' ? JSON.parse(images) : images;
-      if (Array.isArray(parsedImages)) {
+      const parsedImages = safeParseArray(images, []);
+      if (Array.isArray(parsedImages) && parsedImages.length > 0) {
         imageUrls = [...imageUrls, ...parsedImages];
       }
     }
@@ -261,16 +290,9 @@ const createProduct = async (req, res, next) => {
       ];
     }
 
-    // Parse sizes and colors if passed as JSON string
-    let parsedSizes = ['7', '8', '9', '10', '11'];
-    if (sizes) {
-      parsedSizes = typeof sizes === 'string' ? JSON.parse(sizes) : sizes;
-    }
-
-    let parsedColors = ['Black', 'White'];
-    if (colors) {
-      parsedColors = typeof colors === 'string' ? JSON.parse(colors) : colors;
-    }
+    // Parse sizes and colors safely
+    const parsedSizes = safeParseArray(sizes, ['7', '8', '9', '10', '11']);
+    const parsedColors = safeParseArray(colors, ['Black', 'White']);
 
     const product = new Product({
       name,
@@ -367,11 +389,11 @@ const updateProduct = async (req, res, next) => {
     }
 
     // Sizes & Colors
-    if (sizes) {
-      product.sizes = typeof sizes === 'string' ? JSON.parse(sizes) : sizes;
+    if (sizes !== undefined) {
+      product.sizes = safeParseArray(sizes, product.sizes || ['7', '8', '9', '10', '11']);
     }
-    if (colors) {
-      product.colors = typeof colors === 'string' ? JSON.parse(colors) : colors;
+    if (colors !== undefined) {
+      product.colors = safeParseArray(colors, product.colors || ['Black', 'White']);
     }
 
     // Process new uploaded images
@@ -383,8 +405,8 @@ const updateProduct = async (req, res, next) => {
       }
     }
 
-    if (images) {
-      const parsedImages = typeof images === 'string' ? JSON.parse(images) : images;
+    if (images !== undefined) {
+      const parsedImages = safeParseArray(images, []);
       if (Array.isArray(parsedImages)) {
         product.images = [...parsedImages, ...newImageUrls];
       }
@@ -431,7 +453,7 @@ const deleteProduct = async (req, res, next) => {
       }
     }
 
-    await Product.findByIdAndDelete(req.params.id);
+    await product.deleteOne();
 
     res.status(200).json({
       success: true,

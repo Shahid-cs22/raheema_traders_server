@@ -52,6 +52,7 @@ const seedAllAdmins = async () => {
         email: user.email.toLowerCase(),
         passwordHash,
         role: user.role,
+        isEmailVerified: true,
       };
 
       if (user.username) {

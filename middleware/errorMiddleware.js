@@ -17,7 +17,11 @@ const errorHandler = (err, req, res, next) => {
   // Handle Mongoose duplicate key error (code 11000)
   if (err.code === 11000) {
     statusCode = 400;
-    const field = Object.keys(err.keyValue)[0];
+    const field = err.keyValue
+      ? Object.keys(err.keyValue)[0]
+      : err.keyPattern
+      ? Object.keys(err.keyPattern)[0]
+      : 'field';
     message = `Duplicate value entered for ${field}. Please use another value.`;
   }
 
@@ -27,6 +31,17 @@ const errorHandler = (err, req, res, next) => {
     message = Object.values(err.errors)
       .map((item) => item.message)
       .join(', ');
+  }
+
+  // Handle JWT Authentication Errors
+  if (err.name === 'JsonWebTokenError') {
+    statusCode = 401;
+    message = 'Invalid authentication token. Please log in again.';
+  }
+
+  if (err.name === 'TokenExpiredError') {
+    statusCode = 401;
+    message = 'Authentication token expired. Please log in again.';
   }
 
   // Handle Multer upload errors

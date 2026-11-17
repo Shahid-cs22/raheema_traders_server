@@ -1,4 +1,11 @@
 const Product = require('../models/Product');
+const Category = require('../models/Category');
+
+// Helper to escape regex special characters to prevent search query crashes
+const escapeRegex = (text) => {
+  if (!text || typeof text !== 'string') return '';
+  return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+};
 
 // @desc    Get all public products with search, filtering, sorting & pagination
 // @route   GET /api/products
@@ -21,9 +28,10 @@ const getProducts = async (req, res, next) => {
 
     const query = { isActive: true };
 
-    // Search query (keyword regex on name, brand, description)
+    // Search query (keyword regex on name, brand, description, category with regex escape)
     if (search && search.trim()) {
-      const searchRegex = new RegExp(search.trim(), 'i');
+      const sanitized = escapeRegex(search.trim());
+      const searchRegex = new RegExp(sanitized, 'i');
       query.$or = [
         { name: searchRegex },
         { brand: searchRegex },
@@ -263,6 +271,12 @@ const getCategories = async (req, res, next) => {
         description: 'High-traction running, training & turf shoes',
       },
       {
+        name: 'Sneakers',
+        slug: 'sneakers',
+        image: 'https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&w=800&q=80',
+        description: 'Modern lifestyle trainers, street sneakers & canvas kicks',
+      },
+      {
         name: 'Raincoat',
         slug: 'raincoat',
         image: 'https://images.unsplash.com/photo-1515694346937-94d85e41e6f0?auto=format&fit=crop&w=800&q=80',
@@ -299,8 +313,22 @@ const getCategories = async (req, res, next) => {
       countMap[c._id] = c.count;
     });
 
-    const categoriesWithCount = standardCategories.map((cat) => ({
-      ...cat,
+    // Check if dynamic categories exist in MongoDB Atlas Category collection
+    let baseCategories = standardCategories;
+    try {
+      const dbCategories = await Category.find({ isActive: true }).lean();
+      if (dbCategories && dbCategories.length > 0) {
+        baseCategories = dbCategories;
+      }
+    } catch (catErr) {
+      // Fallback safely to standardCategories
+    }
+
+    const categoriesWithCount = baseCategories.map((cat) => ({
+      name: cat.name,
+      slug: cat.slug,
+      image: cat.image,
+      description: cat.description,
       productCount: countMap[cat.name] || 0,
     }));
 

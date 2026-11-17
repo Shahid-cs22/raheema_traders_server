@@ -40,4 +40,34 @@ const protectAdmin = async (req, res, next) => {
   }
 };
 
-module.exports = { protectAdmin };
+const optionalAdmin = async (req, res, next) => {
+  let token;
+
+  if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith('Bearer')
+  ) {
+    token = req.headers.authorization.split(' ')[1];
+  }
+
+  if (!token) {
+    return next();
+  }
+
+  try {
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET || 'kinetic_super_secret_jwt_key_2026_modern_footwear'
+    );
+    const admin = await Admin.findById(decoded.id).select('-passwordHash');
+    if (admin) {
+      req.admin = admin;
+    }
+  } catch (error) {
+    // Silently proceed for optional auth
+  }
+
+  next();
+};
+
+module.exports = { protectAdmin, optionalAdmin };
