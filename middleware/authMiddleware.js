@@ -18,8 +18,15 @@ const protectAdmin = async (req, res, next) => {
     });
   }
 
+  if (!process.env.JWT_SECRET) {
+    return res.status(500).json({
+      success: false,
+      message: 'Authentication is not configured on this server.',
+    });
+  }
+
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'kinetic_super_secret_jwt_key_2026_modern_footwear');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const admin = await Admin.findById(decoded.id).select('-passwordHash');
 
     if (!admin) {
@@ -54,11 +61,10 @@ const optionalAdmin = async (req, res, next) => {
     return next();
   }
 
+  if (!process.env.JWT_SECRET) return next();
+
   try {
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || 'kinetic_super_secret_jwt_key_2026_modern_footwear'
-    );
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const admin = await Admin.findById(decoded.id).select('-passwordHash');
     if (admin) {
       req.admin = admin;

@@ -1,7 +1,11 @@
 const slugify = require('slugify');
+const fs = require('fs');
+const path = require('path');
 const Product = require('../models/Product');
 const Image = require('../models/Image');
 const { processUploadedFile } = require('../middleware/uploadMiddleware');
+const { parseIntegerParam } = require('../utils/queryParams');
+const { cloudinary, isCloudinaryConfigured } = require('../config/cloudinary');
 
 // Helper to escape regex special characters to prevent search query crashes
 const escapeRegex = (text) => {
@@ -94,6 +98,58 @@ const normalizeCategory = (cat) => {
   return c;
 };
 
+const getLocalUploadFilename = (imageUrl) => {
+  if (typeof imageUrl !== 'string') return null;
+  try {
+    const pathname = imageUrl.startsWith('/') ? imageUrl : new URL(imageUrl).pathname;
+    const filename = path.basename(decodeURIComponent(pathname));
+    return filename.startsWith('footwear-') ? filename : null;
+  } catch (error) {
+    return null;
+  }
+};
+
+const getCloudinaryPublicId = (imageUrl) => {
+  try {
+    const parsed = new URL(imageUrl);
+    if (parsed.hostname !== 'res.cloudinary.com') return null;
+    const segments = parsed.pathname.split('/').filter(Boolean);
+    const versionIndex = segments.findIndex((segment) => /^v\d+$/.test(segment));
+    if (versionIndex < 0 || versionIndex === segments.length - 1) return null;
+    const publicId = segments.slice(versionIndex + 1).join('/').replace(/\.[^.]+$/, '');
+    return publicId || null;
+  } catch (error) {
+    return null;
+  }
+};
+
+const removeUnusedImages = async (imageUrls) => {
+  for (const imageUrl of [...new Set(imageUrls)]) {
+    const filename = getLocalUploadFilename(imageUrl);
+    const referenceQuery = filename
+      ? { images: { $regex: `${filename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$` } }
+      : { images: imageUrl };
+    if (await Product.exists(referenceQuery)) continue;
+
+    if (filename) {
+      await Image.deleteOne({ filename });
+      await fs.promises.unlink(path.join(__dirname, '../uploads', filename)).catch((error) => {
+        if (error.code !== 'ENOENT') console.warn(`[Image Cleanup]: Could not remove ${filename}: ${error.message}`);
+      });
+      continue;
+    }
+
+    const publicId = isCloudinaryConfigured ? getCloudinaryPublicId(imageUrl) : null;
+    if (publicId) {
+      try {
+        await cloudinary.uploader.destroy(publicId);
+      } catch (error) {
+        console.warn(`[Image Cleanup]: Could not remove Cloudinary asset ${publicId}: ${error.message}`);
+      }
+    }
+  }
+};
+
 // @desc    Get dashboard metrics & summary
 // @route   GET /api/admin/dashboard
 // @access  Private/Admin
@@ -184,8 +240,8 @@ const getAllProductsAdmin = async (req, res, next) => {
     if (sort === 'stock_desc') sortOptions = { stock: -1 };
     if (sort === 'name_asc') sortOptions = { name: 1 };
 
-    const pageNum = Math.max(1, parseInt(page, 10));
-    const limitNum = Math.max(1, parseInt(limit, 10));
+    const pageNum = parseIntegerParam(page, 'page', 1, { max: 1000000 });
+    const limitNum = parseIntegerParam(limit, 'limit', 10, { max: 100 });
     const skip = (pageNum - 1) * limitNum;
 
     const total = await Product.countDocuments(query);
@@ -201,6 +257,18 @@ const getAllProductsAdmin = async (req, res, next) => {
       currentPage: pageNum,
       products,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getProductByIdAdmin = async (req, res, next) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Product not found.' });
+    }
+    res.status(200).json({ success: true, product });
   } catch (error) {
     next(error);
   }
@@ -294,6 +362,11 @@ const createProduct = async (req, res, next) => {
     const parsedSizes = safeParseArray(sizes, ['7', '8', '9', '10', '11']);
     const parsedColors = safeParseArray(colors, ['Black', 'White']);
 
+    const parsedStock = stock === undefined || stock === '' ? 0 : Number(stock);
+    if (!Number.isFinite(parsedStock)) {
+      return res.status(400).json({ success: false, message: 'Stock must be a valid number.' });
+    }
+
     const product = new Product({
       name,
       slug,
@@ -306,7 +379,7 @@ const createProduct = async (req, res, next) => {
       images: imageUrls,
       sizes: parsedSizes,
       colors: parsedColors,
-      stock: Number(stock) || 0,
+      stock: parsedStock,
       sku,
       isFeatured: isFeatured === true || isFeatured === 'true',
       isActive: isActive === undefined ? true : isActive === true || isActive === 'true',
@@ -397,6 +470,7 @@ const updateProduct = async (req, res, next) => {
     }
 
     // Process new uploaded images
+    const previousImageUrls = [...(product.images || [])];
     let newImageUrls = [];
     if (req.files && req.files.length > 0) {
       for (const file of req.files) {
@@ -415,6 +489,11 @@ const updateProduct = async (req, res, next) => {
     }
 
     const updatedProduct = await product.save();
+
+    const removedImageUrls = previousImageUrls.filter((url) => !updatedProduct.images.includes(url));
+    await removeUnusedImages(removedImageUrls).catch((cleanupError) => {
+      console.warn('[Image Cleanup]: Could not remove unused local product images:', cleanupError.message);
+    });
 
     res.status(200).json({
       success: true,
@@ -440,20 +519,10 @@ const deleteProduct = async (req, res, next) => {
       });
     }
 
-    // Clean up stored image in MongoDB Atlas if any
-    if (product.images && product.images.length > 0) {
-      for (const imgUrl of product.images) {
-        if (typeof imgUrl === 'string') {
-          const parts = imgUrl.split('/');
-          const filename = parts[parts.length - 1];
-          if (filename && filename.startsWith('footwear-')) {
-            await Image.findOneAndDelete({ filename }).catch(() => {});
-          }
-        }
-      }
-    }
-
     await product.deleteOne();
+    await removeUnusedImages(product.images || []).catch((cleanupError) => {
+      console.warn('[Image Cleanup]: Could not remove unused local product images:', cleanupError.message);
+    });
 
     res.status(200).json({
       success: true,
@@ -524,6 +593,7 @@ const uploadImage = async (req, res, next) => {
 module.exports = {
   getDashboardStats,
   getAllProductsAdmin,
+  getProductByIdAdmin,
   createProduct,
   updateProduct,
   deleteProduct,

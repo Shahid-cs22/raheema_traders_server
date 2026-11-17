@@ -9,7 +9,8 @@
     "seed:admin": "node scripts/createAdmin.js",
     "seed:admins": "node scripts/seedAdmins.js",
     "seed:products": "node scripts/seedProducts.js",
-    "sync-images": "node scripts/syncUploads.js"
+    "sync-images": "node scripts/syncUploads.js",
+    "db:diagnose": "node scripts/diagnoseIndexes.js"
   },
   "keywords": [
     "footwear",

@@ -1,5 +1,6 @@
 const Product = require('../models/Product');
 const Category = require('../models/Category');
+const { parseIntegerParam, parseNumberParam } = require('../utils/queryParams');
 
 // Helper to escape regex special characters to prevent search query crashes
 const escapeRegex = (text) => {
@@ -99,12 +100,16 @@ const getProducts = async (req, res, next) => {
     // Price range filter
     if (minPrice !== undefined || maxPrice !== undefined) {
       query.price = {};
-      if (minPrice !== undefined && minPrice !== '') {
-        query.price.$gte = Number(minPrice);
+      const parsedMinPrice = parseNumberParam(minPrice, 'minPrice');
+      const parsedMaxPrice = parseNumberParam(maxPrice, 'maxPrice');
+      if (parsedMinPrice !== undefined) query.price.$gte = parsedMinPrice;
+      if (parsedMaxPrice !== undefined) query.price.$lte = parsedMaxPrice;
+      if (parsedMinPrice !== undefined && parsedMaxPrice !== undefined && parsedMinPrice > parsedMaxPrice) {
+        const error = new Error('minPrice cannot be greater than maxPrice.');
+        error.statusCode = 400;
+        throw error;
       }
-      if (maxPrice !== undefined && maxPrice !== '') {
-        query.price.$lte = Number(maxPrice);
-      }
+      if (parsedMinPrice === undefined && parsedMaxPrice === undefined) delete query.price;
     }
 
     // In-Stock filter
@@ -124,8 +129,8 @@ const getProducts = async (req, res, next) => {
       sortOptions = { isFeatured: -1, createdAt: -1 };
     }
 
-    const pageNum = Math.max(1, parseInt(page, 10));
-    const limitNum = Math.max(1, parseInt(limit, 10));
+    const pageNum = parseIntegerParam(page, 'page', 1, { max: 1000000 });
+    const limitNum = parseIntegerParam(limit, 'limit', 12, { max: 100 });
     const skip = (pageNum - 1) * limitNum;
 
     const total = await Product.countDocuments(query);

@@ -4,23 +4,31 @@ let cachedTransporter = null;
 
 /**
  * Get or create the Nodemailer transporter.
- * Supports SMTP (e.g. Gmail App Passwords) and automatically falls back
- * to an Ethereal test account in development when credentials are not configured.
+ * Supports SMTP (e.g. Gmail App Passwords). Ethereal is available only in
+ * development; production never reports a test mailbox as a delivered email.
  */
 const getTransporter = async () => {
   if (cachedTransporter) {
     return cachedTransporter;
   }
 
-  const host = process.env.EMAIL_HOST || process.env.SMTP_HOST || 'smtp.gmail.com';
-  const port = parseInt(process.env.EMAIL_PORT || process.env.SMTP_PORT || '587', 10);
-  const user = process.env.EMAIL_USER || process.env.SMTP_USER;
-  const rawPass = process.env.EMAIL_PASS || process.env.SMTP_PASS;
-  const pass = rawPass ? rawPass.trim().replace(/\s+/g, '') : '';
-  const secure = (process.env.EMAIL_SECURE === 'true' || port === 465);
+  const host = (process.env.EMAIL_HOST || process.env.SMTP_HOST || '').trim();
+  const portValue = process.env.EMAIL_PORT || process.env.SMTP_PORT || '587';
+  const port = Number(portValue);
+  const user = (process.env.EMAIL_USER || process.env.SMTP_USER || '').trim();
+  let pass = (process.env.EMAIL_PASS || process.env.SMTP_PASS || '').trim();
+  const secureValue = process.env.EMAIL_SECURE?.trim() || undefined;
+  if (secureValue !== undefined && !['true', 'false'].includes(secureValue.toLowerCase())) {
+    throw new Error('Invalid SMTP configuration: EMAIL_SECURE must be true or false.');
+  }
+  const secure = secureValue === undefined ? port === 465 : secureValue.toLowerCase() === 'true';
+  if (/\.gmail\.com$/i.test(host)) pass = pass.replace(/\s+/g, '');
 
-  if (user && pass) {
-    // Configured with real SMTP / Gmail
+  if (user || pass || host) {
+    if (!host || !Number.isInteger(port) || port < 1 || port > 65535 || !user || !pass) {
+      throw new Error('Invalid SMTP configuration: set a valid EMAIL_HOST, EMAIL_PORT, EMAIL_USER, and EMAIL_PASS together.');
+    }
+
     cachedTransporter = nodemailer.createTransport({
       host,
       port,
@@ -31,13 +39,17 @@ const getTransporter = async () => {
       },
     });
 
-    console.log(`[Email Service]: Configured SMTP transporter with ${host}:${port} (${user})`);
+    console.log(`[Email Service]: Configured SMTP transporter with ${host}:${port}`);
     return cachedTransporter;
   }
 
-  // Fallback: Generate Ethereal test account for local development
+  if (process.env.NODE_ENV !== 'development') {
+    throw new Error('SMTP is not configured. Set EMAIL_HOST, EMAIL_PORT, EMAIL_USER, and EMAIL_PASS before sending email.');
+  }
+
+  // Development-only fallback: generate an Ethereal test account.
   try {
-    console.log('[Email Service]: No SMTP credentials found in .env. Initializing Ethereal test account...');
+    console.log('[Email Service]: SMTP credentials are absent; initializing a development Ethereal test account.');
     const testAccount = await nodemailer.createTestAccount();
     cachedTransporter = nodemailer.createTransport({
       host: testAccount.smtp.host,
@@ -52,11 +64,7 @@ const getTransporter = async () => {
     console.log(`[Email Service]: Ethereal dev mailbox ready (${testAccount.user})`);
     return cachedTransporter;
   } catch (err) {
-    console.warn('[Email Service]: Could not create Ethereal test account, using JSON transport fallback:', err.message);
-    cachedTransporter = nodemailer.createTransport({
-      jsonTransport: true,
-    });
-    return cachedTransporter;
+    throw new Error(`Could not create development Ethereal account: ${err.message}`);
   }
 };
 
@@ -64,6 +72,10 @@ const getTransporter = async () => {
  * Base send email function
  */
 const sendEmail = async ({ to, subject, html, text }) => {
+  if (!to || !subject || (!html && !text)) {
+    throw new Error('Email requires a recipient, subject, and either HTML or text content.');
+  }
+
   try {
     const transporter = await getTransporter();
     const from =
@@ -74,7 +86,7 @@ const sendEmail = async ({ to, subject, html, text }) => {
       from,
       to,
       subject,
-      text: text || html.replace(/<[^>]*>?/gm, ''),
+      text: text || String(html || '').replace(/<[^>]*>?/gm, ''),
       html,
     };
 

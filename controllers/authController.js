@@ -6,9 +6,12 @@ const emailService = require('../utils/emailService');
 
 // Generate JWT token
 const generateToken = (id) => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET must be configured before issuing authentication tokens.');
+  }
   return jwt.sign(
     { id },
-    process.env.JWT_SECRET || 'kinetic_super_secret_jwt_key_2026_modern_footwear',
+    process.env.JWT_SECRET,
     {
       expiresIn: process.env.JWT_EXPIRES_IN || '7d',
     }

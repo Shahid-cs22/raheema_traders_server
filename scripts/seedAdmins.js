@@ -4,89 +4,60 @@ const bcrypt = require('bcryptjs');
 const Admin = require('../models/Admin');
 const connectDB = require('../config/db');
 
-const authorizedAdmins = [
-  {
-    name: 'Moh Rashid',
-    email: 'moh.rashid20006@gmail.com',
-    password: 'rashidrt@06',
-    role: 'admin',
-  },
-  {
-    name: 'Sabeek',
-    email: 'sabeek007@gmail.com',
-    password: 'sahulhameedrt@77',
-    role: 'admin',
-  },
-  {
-    name: 'Moh Shahid',
-    email: 'moh.shahid2004@gmail.com',
-    password: 'shahidrt@ety',
-    role: 'superadmin',
-  },
-  {
-    name: 'Raheema Traders',
-    username: 'raheematraders75',
-    email: 'raheematraders75@gmail.com',
-    password: 'raheematraders@1975',
-    role: 'superadmin',
-  },
-];
-
-const seedAllAdmins = async () => {
+const seedAdmins = async () => {
+  let accounts;
   try {
-    console.log('[Seed Admins]: Connecting to MongoDB Atlas...');
-    await connectDB();
-
-    console.log('[Seed Admins]: Registering/Updating authorized administrators...');
-
-    for (const user of authorizedAdmins) {
-      const salt = await bcrypt.genSalt(10);
-      const passwordHash = await bcrypt.hash(user.password, salt);
-
-      const filter = user.username
-        ? { $or: [{ email: user.email.toLowerCase() }, { username: user.username.toLowerCase() }] }
-        : { email: user.email.toLowerCase() };
-
-      const updateData = {
-        name: user.name,
-        email: user.email.toLowerCase(),
-        passwordHash,
-        role: user.role,
-        isEmailVerified: true,
-      };
-
-      if (user.username) {
-        updateData.username = user.username.toLowerCase();
-      }
-
-      await Admin.findOneAndUpdate(filter, updateData, {
-        upsert: true,
-        new: true,
-        setDefaultsOnInsert: true,
-      });
-
-      console.log(`  ✓ Configured: ${user.name} | ${user.username || user.email} (${user.role})`);
-    }
-
-    console.log(`
-  ======================================================
-    ALL 4 ADMINISTRATORS CONFIGURED IN MONGODB ATLAS!
-  ======================================================
-    1. moh.rashid20006@gmail.com    (password: rashidrt@06)
-    2. sabeek007@gmail.com          (password: sahulhameedrt@77)
-    3. moh.shahid2004@gmail.com     (password: shahidrt@ety)
-    4. raheematraders75             (password: raheematraders@1975)
-  ======================================================
-    All 4 users can now log into /admin/login
-  ======================================================
-    `);
-
-    await mongoose.disconnect();
-    process.exit(0);
+    accounts = JSON.parse(process.env.ADMIN_ACCOUNTS_JSON || '');
   } catch (error) {
-    console.error('[Seed Admins Error]:', error.message);
-    process.exit(1);
+    throw new Error('ADMIN_ACCOUNTS_JSON must be valid JSON containing an array of admin objects.');
+  }
+  if (!Array.isArray(accounts) || accounts.length === 0) {
+    throw new Error('Set ADMIN_ACCOUNTS_JSON to an array of admin credentials before running this script.');
+  }
+
+  for (const [index, account] of accounts.entries()) {
+    if (!account?.name || !account?.email || !account?.password) {
+      throw new Error(`Admin entry ${index + 1} must include name, email, and password.`);
+    }
+    if (String(account.password).length < 12) {
+      throw new Error(`Admin entry ${index + 1} password must be at least 12 characters.`);
+    }
+    if (!['admin', 'superadmin'].includes(account.role || 'admin')) {
+      throw new Error(`Admin entry ${index + 1} has an invalid role.`);
+    }
+  }
+
+  try {
+    await connectDB();
+    for (const account of accounts) {
+      const email = account.email.trim().toLowerCase();
+      const username = account.username?.trim().toLowerCase() || undefined;
+      const passwordHash = await bcrypt.hash(account.password, 12);
+      const identityFilter = username
+        ? { $or: [{ email }, { username }] }
+        : { email };
+      await Admin.findOneAndUpdate(
+        identityFilter,
+        {
+          $set: {
+            name: account.name.trim(),
+            email,
+            username,
+            passwordHash,
+            role: account.role || 'admin',
+            isEmailVerified: true,
+          },
+        },
+        { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
+      );
+      console.log(`[Seed Admins]: Provisioned ${email}`);
+    }
+  } finally {
+    if (mongoose.connection.readyState !== 0) await mongoose.disconnect();
   }
 };
 
-seedAllAdmins();
+seedAdmins().catch((error) => {
+  console.error(`[Seed Admins Error]: ${error.message}`);
+  process.exitCode = 1;
+});

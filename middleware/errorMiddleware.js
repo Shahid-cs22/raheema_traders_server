@@ -5,8 +5,13 @@ const notFound = (req, res, next) => {
 };
 
 const errorHandler = (err, req, res, next) => {
-  let statusCode = res.statusCode === 200 ? 500 : res.statusCode;
+  let statusCode = err.statusCode || (res.statusCode === 200 ? 500 : res.statusCode);
   let message = err.message || 'Internal Server Error';
+
+  if (err.message === 'Origin is not allowed by CORS') {
+    statusCode = 403;
+    message = 'This origin is not allowed by the API.';
+  }
 
   // Handle Mongoose Bad ObjectId (CastError)
   if (err.name === 'CastError' && err.kind === 'ObjectId') {
@@ -50,6 +55,10 @@ const errorHandler = (err, req, res, next) => {
     if (err.code === 'LIMIT_FILE_SIZE') {
       message = 'Image size cannot exceed 5MB';
     }
+  }
+
+  if (err.message && err.message.startsWith('Only .jpg')) {
+    statusCode = 400;
   }
 
   res.status(statusCode).json({

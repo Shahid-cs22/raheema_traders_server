@@ -4,6 +4,22 @@ const app = require('./app');
 const connectDB = require('./config/db');
 
 const PORT = process.env.PORT || 5000;
+let reconnectTimer;
+
+const scheduleDbReconnect = () => {
+  if (reconnectTimer || process.env.NODE_ENV === 'test') return;
+  reconnectTimer = setTimeout(async () => {
+    reconnectTimer = null;
+    if (mongoose.connection.readyState === 1) return;
+    try {
+      await connectDB();
+    } catch (error) {
+      console.warn('[Database]: Reconnect attempt failed; retrying in 30 seconds.');
+      scheduleDbReconnect();
+    }
+  }, 30000);
+  reconnectTimer.unref?.();
+};
 
 // Start Server after attempting DB connection
 const startServer = async () => {
@@ -12,7 +28,10 @@ const startServer = async () => {
     console.log('[Database]: Connected successfully');
   } catch (error) {
     console.warn('[Database Warning]: Server starting with offline/unconnected DB state:', error.message);
+    scheduleDbReconnect();
   }
+
+  mongoose.connection.on('disconnected', scheduleDbReconnect);
 
   const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`
@@ -30,6 +49,7 @@ const startServer = async () => {
 
   // Graceful shutdown helper
   const shutdown = async (signal) => {
+    if (reconnectTimer) clearTimeout(reconnectTimer);
     console.log(`\n[Server]: Received ${signal}. Initiating graceful shutdown...`);
     server.close(async () => {
       console.log('[Server]: HTTP server closed to new requests.');

@@ -1,16 +1,20 @@
 const cloudinary = require('cloudinary').v2;
 
-const isCloudinaryConfigured = Boolean(
-  process.env.CLOUDINARY_CLOUD_NAME &&
-  process.env.CLOUDINARY_API_KEY &&
-  process.env.CLOUDINARY_API_SECRET
-);
+const cloudinaryValues = {
+  cloud_name: (process.env.CLOUDINARY_CLOUD_NAME || '').trim(),
+  api_key: (process.env.CLOUDINARY_API_KEY || '').trim(),
+  api_secret: (process.env.CLOUDINARY_API_SECRET || '').trim(),
+};
+const hasCloudinaryValue = Object.values(cloudinaryValues).some(Boolean);
+const isCloudinaryConfigured = Object.values(cloudinaryValues).every(Boolean);
+
+if (hasCloudinaryValue && !isCloudinaryConfigured) {
+  throw new Error('Cloudinary configuration is incomplete. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET together.');
+}
 
 if (isCloudinaryConfigured) {
   cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
+    ...cloudinaryValues,
   });
   console.log('[Cloudinary Configured]: Active');
 } else {

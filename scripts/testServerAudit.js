@@ -22,7 +22,7 @@ const sanitizeUploadFilename = (filename) => {
 };
 
 // Lightweight Express route invocation using native IncomingMessage/ServerResponse (no network sockets needed)
-const dispatchExpressRequest = (expressApp, method, url) => {
+const dispatchExpressRequest = (expressApp, method, url, extraHeaders = {}) => {
   return new Promise((resolve) => {
     const socket = {
       remoteAddress: '127.0.0.1',
@@ -36,7 +36,7 @@ const dispatchExpressRequest = (expressApp, method, url) => {
     req.connection = socket;
     req.method = method;
     req.url = url;
-    req.headers = { host: 'localhost:5000' };
+    req.headers = { host: 'localhost:5000', ...extraHeaders };
 
     let body = '';
     const res = new http.ServerResponse(req);
@@ -250,15 +250,18 @@ const runServerAuditTestSuite = async () => {
     // Test GET /api/health
     const healthGet = await dispatchExpressRequest(app, 'GET', '/api/health');
     assertTest(
-      'GET /api/health returns 200 OK with database connectivity status',
-      healthGet.statusCode === 200 && healthGet.body.includes('"database":')
+      'GET /api/health reports database connectivity and degrades when disconnected',
+      healthGet.body.includes('"database":') &&
+        (healthGet.body.includes('"database":"connected"')
+          ? healthGet.statusCode === 200
+          : healthGet.statusCode === 503)
     );
 
     // Test HEAD /api/health
     const healthHead = await dispatchExpressRequest(app, 'HEAD', '/api/health');
     assertTest(
-      'HEAD /api/health returns 200 OK for cloud ping checks',
-      healthHead.statusCode === 200
+      'HEAD /api/health uses the same healthy/degraded status as GET',
+      healthHead.statusCode === (mongoose.connection.readyState === 1 ? 200 : 503)
     );
 
     // Test Favicon 204 handler
@@ -268,13 +271,25 @@ const runServerAuditTestSuite = async () => {
       faviconRes.statusCode === 204
     );
 
+    const allowedCors = await dispatchExpressRequest(app, 'GET', '/', { origin: 'https://raheema-traders.vercel.app' });
+    assertTest(
+      'Configured production frontend origin is allowed',
+      allowedCors.statusCode === 200 && allowedCors.headers['access-control-allow-origin'] === 'https://raheema-traders.vercel.app'
+    );
+
+    const rejectedCors = await dispatchExpressRequest(app, 'GET', '/', { origin: 'https://untrusted.example' });
+    assertTest(
+      'Unknown browser origins are rejected by CORS',
+      rejectedCors.statusCode === 403
+    );
+
     // Summary
     console.log('\n======================================================');
     console.log(` AUDIT SUITE COMPLETED: ${passedTests}/${totalTests} TESTS PASSED`);
     console.log('======================================================');
 
     if (passedTests !== totalTests) {
-      process.exit(1);
+      process.exitCode = 1;
     }
   } catch (error) {
     console.error('Fatal error during server audit suite:', error);
@@ -283,7 +298,6 @@ const runServerAuditTestSuite = async () => {
     if (mongoose.connection.readyState !== 0) {
       await mongoose.disconnect();
     }
-    process.exit(0);
   }
 };
 

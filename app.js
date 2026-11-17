@@ -28,20 +28,28 @@ app.use(
 
 // CORS configuration for frontend
 const allowedOrigins = [
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
   'https://raheema-traders.vercel.app',
+  ...(process.env.CLIENT_URLS || '').split(',').map((origin) => origin.trim()),
   process.env.CLIENT_URL,
 ].filter(Boolean);
+
+if (process.env.NODE_ENV === 'development') {
+  allowedOrigins.push(
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:4173',
+    'http://127.0.0.1:4173'
+  );
+}
 
 app.use(
   cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps, curl, or Postman)
-      if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+      if (!origin || allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
-      return callback(null, true); // Allow all in dev/preview if needed
+      return callback(new Error('Origin is not allowed by CORS'));
     },
     credentials: true,
   })
@@ -75,6 +83,10 @@ app.get('/uploads/:filename', async (req, res, next) => {
     }
 
     // 2. Fallback to MongoDB Atlas Image buffer
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ success: false, message: 'Image storage is temporarily unavailable.' });
+    }
+
     const img = await Image.findOne({ filename: safeFilename });
     if (img && img.data) {
       res.set('Content-Type', img.contentType || 'image/jpeg');
@@ -131,10 +143,12 @@ app.all('/', (req, res) => {
 app.all('/api/health', (req, res) => {
   const dbState = mongoose.connection.readyState;
   const dbStatusMap = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
-  res.status(200).json({
-    status: 'online',
+  const database = dbStatusMap[dbState] || 'unknown';
+  const healthy = dbState === 1;
+  res.status(healthy ? 200 : 503).json({
+    status: healthy ? 'online' : 'degraded',
     service: 'Kinetic Footwear API',
-    database: dbStatusMap[dbState] || 'unknown',
+    database,
     timestamp: new Date().toISOString(),
   });
 });
@@ -144,8 +158,7 @@ const checkDbConnection = (req, res, next) => {
   if (mongoose.connection.readyState !== 1) {
     return res.status(503).json({
       success: false,
-      message:
-        'Database connection is not active. MongoDB Atlas rejected authentication (bad auth). Please check your database user and password in MongoDB Atlas (Security -> Database Access).',
+      message: 'Database is temporarily unavailable. Please try again shortly.',
     });
   }
   next();

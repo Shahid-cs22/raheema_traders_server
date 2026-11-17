@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const Admin = require('../models/Admin');
 const Product = require('../models/Product');
 const Category = require('../models/Category');
+const { parseIntegerParam, parseNumberParam } = require('../utils/queryParams');
 
 const runAuditTestSuite = async () => {
   console.log('======================================================');
@@ -26,7 +27,7 @@ const runAuditTestSuite = async () => {
     // -----------------------------------------------------------------
     // 1. ADMIN MODEL: Sparse Index & Empty Username Normalization
     // -----------------------------------------------------------------
-    console.log('[1/4] Testing Admin Model Username Normalization...');
+    console.log('[1/5] Testing Admin Model Username Normalization...');
     const adminWithEmptyUsername = new Admin({
       name: 'Audit Admin',
       email: 'audit.admin@example.com',
@@ -54,7 +55,7 @@ const runAuditTestSuite = async () => {
     // -----------------------------------------------------------------
     // 2. PRODUCT MODEL: Pre-Validate Hooks (Slug, SKU, Images, Sizes)
     // -----------------------------------------------------------------
-    console.log('\n[2/4] Testing Product Model Pre-Validate Hooks & Fallbacks...');
+    console.log('\n[2/5] Testing Product Model Pre-Validate Hooks & Fallbacks...');
     
     // Auto-generate slug from name
     const productAutoSlug = new Product({
@@ -109,7 +110,7 @@ const runAuditTestSuite = async () => {
     // -----------------------------------------------------------------
     // 3. PRODUCT MODEL: Discount Price Validation
     // -----------------------------------------------------------------
-    console.log('\n[3/4] Testing Product Model Discount Price Validation...');
+    console.log('\n[3/5] Testing Product Model Discount Price Validation...');
 
     // Valid discount
     const validDiscountProd = new Product({
@@ -165,7 +166,7 @@ const runAuditTestSuite = async () => {
     // -----------------------------------------------------------------
     // 4. CATEGORY MODEL & REGEX SEARCH UTILITY
     // -----------------------------------------------------------------
-    console.log('\n[4/4] Testing Category Model & Search Regex Escaping...');
+    console.log('\n[4/5] Testing Category Model & Search Regex Escaping...');
 
     // Category auto-slug
     const testCat = new Category({
@@ -195,6 +196,18 @@ const runAuditTestSuite = async () => {
       }
     }
     assertTest('Complex search queries with ()[]+*?$ regex chars execute without syntax crash', allRegexPassed);
+
+    console.log('\n[5/5] Testing Query Parameter Validation...');
+    assertTest('Missing page and limit use safe defaults',
+      parseIntegerParam(undefined, 'page', 1) === 1 && parseIntegerParam('', 'limit', 12) === 12);
+    assertTest('Limits are capped to the configured maximum',
+      parseIntegerParam('500', 'limit', 12, { max: 100 }) === 100);
+    let invalidPageRejected = false;
+    try { parseIntegerParam('not-a-number', 'page', 1); } catch (error) { invalidPageRejected = error.statusCode === 400; }
+    assertTest('Malformed pagination input returns a client error', invalidPageRejected);
+    let invalidPriceRejected = false;
+    try { parseNumberParam('NaN', 'maxPrice'); } catch (error) { invalidPriceRejected = error.statusCode === 400; }
+    assertTest('Malformed price filters return a client error', invalidPriceRejected);
 
     console.log('\n======================================================');
     console.log(`  AUDIT SUMMARY: ${passedTests} / ${totalTests} TESTS PASSED!`);

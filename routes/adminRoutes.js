@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   getDashboardStats,
   getAllProductsAdmin,
+  getProductByIdAdmin,
   createProduct,
   updateProduct,
   deleteProduct,
@@ -17,6 +18,7 @@ router.use(protectAdmin);
 
 router.get('/dashboard', getDashboardStats);
 router.get('/products', getAllProductsAdmin);
+router.get('/products/:id', getProductByIdAdmin);
 router.post('/products', upload.array('images', 5), createProduct);
 router.put('/products/:id', upload.array('images', 5), updateProduct);
 router.delete('/products/:id', deleteProduct);
