@@ -277,6 +277,12 @@ const runServerAuditTestSuite = async () => {
       allowedCors.statusCode === 200 && allowedCors.headers['access-control-allow-origin'] === 'https://raheema-traders.vercel.app'
     );
 
+    const localFrontendCors = await dispatchExpressRequest(app, 'GET', '/', { origin: 'http://localhost:5173' });
+    assertTest(
+      'Local frontend origin is allowed when it calls the configured backend',
+      localFrontendCors.statusCode === 200 && localFrontendCors.headers['access-control-allow-origin'] === 'http://localhost:5173'
+    );
+
     const rejectedCors = await dispatchExpressRequest(app, 'GET', '/', { origin: 'https://untrusted.example' });
     assertTest(
       'Unknown browser origins are rejected by CORS',
